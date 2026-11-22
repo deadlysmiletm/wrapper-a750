@@ -1,0 +1,53 @@
+name: Build Vulkan wrapper (A750)
+
+on:
+  workflow_dispatch:
+    inputs:
+      wrapper_ref:
+        description: GameNative/mesa branch/tag/commit
+        default: wrapper-25
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: repo
+
+      - name: Get wrapper source
+        run: git clone -q --depth 1 --branch "${{ inputs.wrapper_ref }}" https://github.com/GameNative/mesa.git src
+
+      - name: Apply patches
+        run: for p in repo/patches/*.patch; do [ -e "$p" ] || continue; echo "== $p"; git -C src apply "../$p"; done
+
+      - name: Deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ninja-build cmake pkg-config flex bison glslang-tools zstd file unzip
+          python3 -m pip install --user --upgrade meson mako pyyaml packaging
+
+      # ponytail: upstream's own build script, so we stay in lockstep with GameNative's wrapper
+      - name: Build
+        working-directory: src
+        run: ./.github/scripts/build-wrapper-gamenative.sh
+
+      - name: Package .wcp
+        run: |
+          VER="a750-$(git -C src rev-parse --short HEAD)-r${{ github.run_number }}"
+          echo "VER=$VER" >> "$GITHUB_ENV"
+          P=$(mktemp -d); zstd -dc src/out/wrapper-gamenative-*.tzst | tar -xf - -C "$P"
+          files=$(cd "$P" && find usr -type f | sort | while read f; do
+            case "$f" in usr/lib/*) t="\${libdir}/${f#usr/lib/}";; usr/share/*) t="\${sharedir}/${f#usr/share/}";; esac
+            echo "{\"source\":\"$f\",\"target\":\"$t\"}"; done | paste -sd,)
+          echo "{\"type\":\"Wrapper\",\"versionName\":\"$VER\",\"versionCode\":0,\"description\":\"GameNative wrapper + A750 patches\",\"files\":[$files]}" > "$P/profile.json"
+          cat "$P/profile.json"
+          tar -C "$P" -cf - profile.json usr | xz -T1 -9 > "wrapper-$VER.wcp"  # ponytail: same single-block xz that GameNative accepted for DXVK
+
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "v$VER" wrapper-*.wcp -R "$GITHUB_REPOSITORY" --title "Wrapper $VER" --notes "GameNative/mesa ${{ inputs.wrapper_ref }} @ $(git -C src rev-parse --short HEAD) + patches/. Import in GameNative as external Wrapper."
