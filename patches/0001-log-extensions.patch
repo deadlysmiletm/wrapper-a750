@@ -1,0 +1,38 @@
+diff --git a/src/vulkan/wrapper/wrapper_physical_device.c b/src/vulkan/wrapper/wrapper_physical_device.c
+index 77cf92a..df9abb0 100644
+--- a/src/vulkan/wrapper/wrapper_physical_device.c
++++ b/src/vulkan/wrapper/wrapper_physical_device.c
+@@ -123,6 +123,11 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
+    result = pdevice->dispatch_table.EnumerateDeviceExtensionProperties(
+       pdevice->dispatch_handle, NULL, &pdevice_extension_count, pdevice_extensions);
+ 
++   /* a750: diagnostic, which extensions the base driver hands us */
++   WRAPPER_LOG(info, "Base driver extensions: result=%d count=%u", result, pdevice_extension_count);
++   for (uint32_t i = 0; i < pdevice_extension_count; i++)
++      WRAPPER_LOG(info, "  base: %s", pdevice_extensions[i].extensionName);
++
+    if (result != VK_SUCCESS)
+       return result;
+ 
+@@ -690,10 +695,17 @@ wrapper_EnumerateDeviceExtensionProperties(VkPhysicalDevice physicalDevice,
+                                            uint32_t* pPropertyCount,
+                                            VkExtensionProperties* pProperties)
+ {
+-   return vk_common_EnumerateDeviceExtensionProperties(physicalDevice,
+-                                                       pLayerName,
+-                                                       pPropertyCount,
+-                                                       pProperties);
++   VkResult r = vk_common_EnumerateDeviceExtensionProperties(physicalDevice,
++                                                             pLayerName,
++                                                             pPropertyCount,
++                                                             pProperties);
++   /* a750: diagnostic, what the app (Wine/DXVK) actually receives */
++   if (pProperties) {
++      WRAPPER_LOG(info, "Exposed extensions: result=%d count=%u", r, *pPropertyCount);
++      for (uint32_t i = 0; i < *pPropertyCount; i++)
++         WRAPPER_LOG(info, "  exposed: %s", pProperties[i].extensionName);
++   }
++   return r;
+ }
+ 
+ VKAPI_ATTR void VKAPI_CALL
