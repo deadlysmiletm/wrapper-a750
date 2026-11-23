@@ -1,0 +1,37 @@
+diff --git a/src/vulkan/wrapper/wrapper_physical_device.c b/src/vulkan/wrapper/wrapper_physical_device.c
+index 77cf92a..59aad56 100644
+--- a/src/vulkan/wrapper/wrapper_physical_device.c
++++ b/src/vulkan/wrapper/wrapper_physical_device.c
+@@ -153,19 +153,27 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
+ 
+ static void
+ wrapper_apply_device_extension_blacklist(struct wrapper_physical_device *physical_device) {
+-   char *blacklist = getenv("WRAPPER_EXTENSION_BLACKLIST");
++   /* a750: exact names (strstr made "VK_KHR_swapchain_maintenance1" also hide
++    * VK_KHR_swapchain), work on a copy (strtok used to cut the env var), allow
++    * spaces and GameNative's '|' separator. */
++   const char *env = getenv("WRAPPER_EXTENSION_BLACKLIST");
++   if (!env)
++      return;
++   char *blacklist = strdup(env);
+    if (!blacklist)
+       return;
+-   char *extension = strtok(blacklist, ",");
+-   while (extension != NULL) {
++   for (char *extension = strtok(blacklist, ",| "); extension != NULL;
++        extension = strtok(NULL, ",| ")) {
+       for (int i = 0; i < VK_DEVICE_EXTENSION_COUNT; i++) {
+-         if (strstr(extension, vk_device_extensions[i].extensionName)) {
++         if (!strcmp(extension, vk_device_extensions[i].extensionName)) {
+             WRAPPER_LOG(info, "Blacklisting extension %s", extension);
++            fprintf(stderr, "[a750] blacklisted %s
++", extension);
+             physical_device->vk.supported_extensions.extensions[i] = false;
+          }
+       }
+-      extension = strtok(NULL, ",");
+    }
++   free(blacklist);
+ }
+ 
+ static VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL
