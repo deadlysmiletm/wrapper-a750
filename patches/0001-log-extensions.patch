@@ -2,19 +2,29 @@ diff --git a/src/vulkan/wrapper/wrapper_physical_device.c b/src/vulkan/wrapper/w
 index 77cf92a..df9abb0 100644
 --- a/src/vulkan/wrapper/wrapper_physical_device.c
 +++ b/src/vulkan/wrapper/wrapper_physical_device.c
-@@ -123,6 +123,11 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
+@@ -1,5 +1,6 @@
+ #include <math.h>
+ #include <fcntl.h>
++#include <stdio.h>
+
+ #include "wrapper_private.h"
+ #include "wrapper_bcdec.h"
+@@ -123,6 +124,14 @@ wrapper_setup_device_extensions(struct wrapper_physical_device *pdevice) {
     result = pdevice->dispatch_table.EnumerateDeviceExtensionProperties(
        pdevice->dispatch_handle, NULL, &pdevice_extension_count, pdevice_extensions);
- 
-+   /* a750: diagnostic, which extensions the base driver hands us */
-+   WRAPPER_LOG(info, "Base driver extensions: result=%d count=%u", result, pdevice_extension_count);
+
++   /* a750: diagnostic to stderr (lands in GameNative's wine log), no env needed */
++   fprintf(stderr, "[a750] env WRAPPER_VK_VERSION=%s BLACKLIST=%s\n",
++           getenv("WRAPPER_VK_VERSION") ? getenv("WRAPPER_VK_VERSION") : "(unset)",
++           getenv("WRAPPER_EXTENSION_BLACKLIST") ? getenv("WRAPPER_EXTENSION_BLACKLIST") : "(unset)");
++   fprintf(stderr, "[a750] base driver extensions: result=%d count=%u\n", result, pdevice_extension_count);
 +   for (uint32_t i = 0; i < pdevice_extension_count; i++)
-+      WRAPPER_LOG(info, "  base: %s", pdevice_extensions[i].extensionName);
++      fprintf(stderr, "[a750]   base: %s\n", pdevice_extensions[i].extensionName);
 +
     if (result != VK_SUCCESS)
        return result;
- 
-@@ -690,10 +695,17 @@ wrapper_EnumerateDeviceExtensionProperties(VkPhysicalDevice physicalDevice,
+
+@@ -690,10 +698,17 @@ wrapper_EnumerateDeviceExtensionProperties(VkPhysicalDevice physicalDevice,
                                             uint32_t* pPropertyCount,
                                             VkExtensionProperties* pProperties)
  {
@@ -28,11 +38,11 @@ index 77cf92a..df9abb0 100644
 +                                                             pProperties);
 +   /* a750: diagnostic, what the app (Wine/DXVK) actually receives */
 +   if (pProperties) {
-+      WRAPPER_LOG(info, "Exposed extensions: result=%d count=%u", r, *pPropertyCount);
++      fprintf(stderr, "[a750] exposed extensions: result=%d count=%u\n", r, *pPropertyCount);
 +      for (uint32_t i = 0; i < *pPropertyCount; i++)
-+         WRAPPER_LOG(info, "  exposed: %s", pProperties[i].extensionName);
++         fprintf(stderr, "[a750]   exposed: %s\n", pProperties[i].extensionName);
 +   }
 +   return r;
  }
- 
+
  VKAPI_ATTR void VKAPI_CALL
